@@ -11,9 +11,24 @@ window.addEventListener('resize', resize);
 
 // ─── Mouse Tracking ────────────────────────────────────────
 let mouse = { x: canvas.width / 2, y: canvas.height / 2 };
+
+// Idle / circling state
+let mouseLastMoved = performance.now();
+let idleState = 'normal';   // 'normal' | 'circling' | 'stopped'
+let circlingStartTime = null;
+let circleAngle = 0;         // current orbital angle (radians)
+let circleSpeed = 0.012;     // current angular speed (randomised)
+let circleSpeedTarget = 0.012;
+let circleSpeedChangeTimer = 0;
+
 canvas.addEventListener('mousemove', e => {
     mouse.x = e.clientX;
     mouse.y = e.clientY;
+    mouseLastMoved = performance.now();
+    if (idleState !== 'normal') {
+        idleState = 'normal';
+        circlingStartTime = null;
+    }
 });
 
 // ─── Utility ────────────────────────────────────────────────
@@ -465,32 +480,100 @@ function drawEyeTrail(time) {
 const MAX_TURN_PER_SEGMENT = 0.12;
 let walkCycle = 0;
 
-function update(time) {
+// Max normal walk speed (used as circling speed cap)
+const MAX_WALK_SPEED = 2;
+// Orbit radius: just outside the cursor visual radius (stopRadius + a small gap)
+const ORBIT_RADIUS = 210;
+// Idle delay before circling begins (ms)
+const IDLE_CIRCLE_DELAY = 10000;
+// Duration of circling before stopping (ms)
+const CIRCLE_STOP_AFTER = 45000;
+
+function updateIdleState() {
+    const now = performance.now();
+    const idleDuration = now - mouseLastMoved;
+
+    if (idleState === 'normal') {
+        if (idleDuration >= IDLE_CIRCLE_DELAY) {
+            idleState = 'circling';
+            circlingStartTime = now;
+            // Initialise orbit angle to current head→mouse angle so we start tangentially
+            const head = segments[0];
+            circleAngle = angleTo(mouse.x, mouse.y, head.x, head.y);
+            circleSpeed = 0.008 + Math.random() * 0.012;
+            circleSpeedTarget = circleSpeed;
+            circleSpeedChangeTimer = 0;
+        }
+    } else if (idleState === 'circling') {
+        if (now - circlingStartTime >= CIRCLE_STOP_AFTER) {
+            idleState = 'stopped';
+        }
+    }
+    // 'stopped' stays stopped until mousemove resets to 'normal'
+}
+
+function updateCircleSpeed(dt) {
+    // Drift speed toward target over time
+    circleSpeed += (circleSpeedTarget - circleSpeed) * 0.02;
+
+    // Periodically pick a new random speed target
+    circleSpeedChangeTimer -= dt;
+    if (circleSpeedChangeTimer <= 0) {
+        // Max angular speed corresponding to MAX_WALK_SPEED at ORBIT_RADIUS
+        const maxAngular = MAX_WALK_SPEED / ORBIT_RADIUS;
+        circleSpeedTarget = 0.004 + Math.random() * (maxAngular - 0.004);
+        circleSpeedChangeTimer = 1.5 + Math.random() * 3.5; // seconds until next change
+    }
+}
+
+function update(time, dt) {
+    updateIdleState();
+
     const head = segments[0];
     const oldHeadX = head.x, oldHeadY = head.y;
-    const toMouse = angleTo(head.x, head.y, mouse.x, mouse.y);
-    const distToMouse = dist(head.x, head.y, mouse.x, mouse.y);
 
-    const stopRadius = 120; // combined radius of skull snout + cursor circle
-    let baseSpeed = 0;
+    let finalSpeed = 0;
+    let swaggerAngle = head.angle;
 
-    if (distToMouse > stopRadius) {
-        baseSpeed = Math.min((distToMouse - stopRadius) * 0.03, 4);
-        // Smooth head turning toward mouse only if not touched
-        head.angle = lerpAngle(head.angle, toMouse, 0.06);
+    if (idleState === 'stopped') {
+        // Reptile is frozen — no movement at all
+        finalSpeed = 0;
+    } else if (idleState === 'circling') {
+        updateCircleSpeed(dt);
+        circleAngle += circleSpeed;
+
+        // Target position on the orbit circle
+        const orbitX = mouse.x + Math.cos(circleAngle) * ORBIT_RADIUS;
+        const orbitY = mouse.y + Math.sin(circleAngle) * ORBIT_RADIUS;
+
+        // Steer head toward orbit target
+        const toOrbit = angleTo(head.x, head.y, orbitX, orbitY);
+        head.angle = lerpAngle(head.angle, toOrbit, 0.06);
+
+        // Speed = arc speed capped at MAX_WALK_SPEED
+        const arcSpeed = Math.min(circleSpeed * ORBIT_RADIUS, MAX_WALK_SPEED);
+        const lurch = 1 + Math.sin(walkCycle * 2 - Math.PI / 2) * 0.25;
+        finalSpeed = arcSpeed * lurch;
+        swaggerAngle = head.angle + Math.sin(walkCycle) * 0.15;
+        walkCycle += arcSpeed * 0.06;
+    } else {
+        // ── Normal behaviour ───────────────────────────────────
+        const toMouse = angleTo(head.x, head.y, mouse.x, mouse.y);
+        const distToMouse = dist(head.x, head.y, mouse.x, mouse.y);
+        const stopRadius = 120;
+        let baseSpeed = 0;
+
+        if (distToMouse > stopRadius) {
+            baseSpeed = Math.min((distToMouse - stopRadius) * 0.03, MAX_WALK_SPEED);
+            head.angle = lerpAngle(head.angle, toMouse, 0.06);
+        }
+
+        if (baseSpeed > 0.1) walkCycle += baseSpeed * 0.06;
+
+        swaggerAngle = head.angle + Math.sin(walkCycle) * 0.25;
+        const lurch = 1 + Math.sin(walkCycle * 2 - Math.PI / 2) * 0.25;
+        finalSpeed = baseSpeed * lurch;
     }
-
-    // Accumulate walk cycle based on distance traveled
-    if (baseSpeed > 0.1) {
-        walkCycle += baseSpeed * 0.06;
-    }
-
-    // Swagger: head sweeps slightly left and right
-    const swaggerAngle = head.angle + Math.sin(walkCycle) * 0.25;
-
-    // Lurch: speed pulses smoothly to simulate taking steps
-    const lurch = 1 + Math.sin(walkCycle * 2 - Math.PI / 2) * 0.25;
-    const finalSpeed = baseSpeed * lurch;
 
     head.x += Math.cos(swaggerAngle) * finalSpeed;
     head.y += Math.sin(swaggerAngle) * finalSpeed;
@@ -607,9 +690,13 @@ function render() {
     // drawCursor(time);
 }
 
+let lastFrameTime = performance.now();
 function gameLoop() {
-    const time = (performance.now() - startTime) / 1000;
-    update(time);
+    const now = performance.now();
+    const dt = Math.min((now - lastFrameTime) / 1000, 0.1); // seconds, capped
+    lastFrameTime = now;
+    const time = (now - startTime) / 1000;
+    update(time, dt);
     render();
     requestAnimationFrame(gameLoop);
 }
