@@ -21,6 +21,13 @@ let circleSpeed = 0.012;     // current angular speed (randomised)
 let circleSpeedTarget = 0.012;
 let circleSpeedChangeTimer = 0;
 
+// Jag / zigzag offsets for the orbit
+let orbitRadiusOffset = 0;       // current extra radius wobble
+let orbitRadiusOffsetTarget = 0; // target wobble
+let orbitRadiusChangeTimer = 0;  // countdown to next radius dart
+let orbitAngleJitter = 0;        // temporary forward/back angle kick
+let orbitAngleJitterTimer = 0;   // countdown to next angle jitter
+
 canvas.addEventListener('mousemove', e => {
     mouse.x = e.clientX;
     mouse.y = e.clientY;
@@ -526,6 +533,28 @@ function updateCircleSpeed(dt) {
     }
 }
 
+function updateOrbitJitter(dt) {
+    // Smoothly drift radius toward its target (gives a wobbly in/out effect)
+    orbitRadiusOffset += (orbitRadiusOffsetTarget - orbitRadiusOffset) * 0.035;
+
+    // Pick a new random radius offset every 0.4 – 1.2 s  (sharp / jaggy)
+    orbitRadiusChangeTimer -= dt;
+    if (orbitRadiusChangeTimer <= 0) {
+        orbitRadiusOffsetTarget = (Math.random() - 0.5) * 160; // ±80 px from ORBIT_RADIUS
+        orbitRadiusChangeTimer = 0.4 + Math.random() * 0.8;
+    }
+
+    // Decay the angle jitter toward zero
+    orbitAngleJitter *= 0.88;
+
+    // Fire a new random angular kick every 0.3 – 0.9 s
+    orbitAngleJitterTimer -= dt;
+    if (orbitAngleJitterTimer <= 0) {
+        orbitAngleJitter += (Math.random() - 0.5) * 0.9; // kick forward or back on the arc
+        orbitAngleJitterTimer = 0.3 + Math.random() * 0.6;
+    }
+}
+
 function update(time, dt) {
     updateIdleState();
 
@@ -540,15 +569,18 @@ function update(time, dt) {
         finalSpeed = 0;
     } else if (idleState === 'circling') {
         updateCircleSpeed(dt);
+        updateOrbitJitter(dt);
         circleAngle += circleSpeed;
 
-        // Target position on the orbit circle
-        const orbitX = mouse.x + Math.cos(circleAngle) * ORBIT_RADIUS;
-        const orbitY = mouse.y + Math.sin(circleAngle) * ORBIT_RADIUS;
+        // Jagged orbit target: radius wobbles, angle has a random forward/back kick
+        const jagRadius = Math.max(90, ORBIT_RADIUS + orbitRadiusOffset);
+        const jagAngle = circleAngle + orbitAngleJitter;
+        const orbitX = mouse.x + Math.cos(jagAngle) * jagRadius;
+        const orbitY = mouse.y + Math.sin(jagAngle) * jagRadius;
 
         // Steer head toward orbit target
         const toOrbit = angleTo(head.x, head.y, orbitX, orbitY);
-        head.angle = lerpAngle(head.angle, toOrbit, 0.06);
+        head.angle = lerpAngle(head.angle, toOrbit, 0.08);
 
         // Speed = arc speed capped at MAX_WALK_SPEED
         const arcSpeed = Math.min(circleSpeed * ORBIT_RADIUS, MAX_WALK_SPEED);
