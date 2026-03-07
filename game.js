@@ -560,7 +560,7 @@ function render() {
     // The gradient automatically extends its last color stop to fill the rest of the rectangle
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    drawCursor(time);
+    // drawCursor(time);
 }
 
 function gameLoop() {
