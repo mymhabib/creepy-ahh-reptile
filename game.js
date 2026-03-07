@@ -94,7 +94,7 @@ function drawFootprints() {
         const f = footprints[i]; f.life -= 0.003;
         if (f.life <= 0) { footprints.splice(i, 1); continue; }
         ctx.save(); ctx.translate(f.x, f.y); ctx.rotate(f.angle);
-        ctx.fillStyle = `rgba(25,50,15,${f.life * 0.25})`;
+        ctx.fillStyle = `rgba(25,50,15,${f.life * 0.4})`;
         for (let c = -1; c <= 1; c++) { ctx.beginPath(); ctx.ellipse(3 * f.size, c * 2.5 * f.size, 2.5 * f.size, 1 * f.size, 0, 0, Math.PI * 2); ctx.fill(); }
         ctx.restore();
     }
@@ -569,7 +569,7 @@ function render() {
     // lightGrad.addColorStop(0.7, 'rgba(5,8,4,0.8)');
     // lightGrad.addColorStop(0.8, 'rgba(5,8,4,0.9)');
     // lightGrad.addColorStop(0.9, 'rgba(5,8,4,0.99)');
-    lightGrad.addColorStop(1, 'rgba(5,8,4,1)');
+    lightGrad.addColorStop(1, 'rgba(5,8,4,0.994)');
 
     ctx.fillStyle = lightGrad;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
