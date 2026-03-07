@@ -137,12 +137,12 @@ const legs = [];
 for (let i = 0; i < legPairs.length; i++) {
     const seg = segments[legPairs[i].seg];
     const t = i / (legPairs.length - 1);
-    
+
     // Shift center back so more legs point forward, and widen angle spread
     const sweepAngle = (t - 0.6) * (Math.PI / 1.8);
-    
+
     // Open up the front legs much more
-    const reachOffset = (1 - t) * 24; 
+    const reachOffset = (1 - t) * 24;
     const reach = (legPairs[i].len1 + legPairs[i].len2) * 0.7 + reachOffset;
 
     for (let s = 0; s < 2; s++) {
@@ -186,10 +186,10 @@ function getIdealFootPos(legIndex) {
     const lp = legPairs[leg.pairIdx];
     const seg = segments[lp.seg];
     const a = seg.angle;
-    
+
     // Front legs slightly forward (-), middle sideways (0), rear backward (+)
     const t = leg.pairIdx / (legPairs.length - 1);
-    
+
     // Shift zero-point to t=0.6 so more legs point forward
     const sweepAngle = (t - 0.6) * (Math.PI / 1.8);
     const legAngle = a + (Math.PI / 2 + sweepAngle) * leg.sideMul;
@@ -434,10 +434,9 @@ function drawTail(time) {
 
 // ─── Background ─────────────────────────────────────────────
 function drawBackground(time) {
-    const grad = ctx.createRadialGradient(mouse.x, mouse.y, 30, mouse.x, mouse.y, 600);
-    grad.addColorStop(0, 'rgba(18,24,12,0.95)'); grad.addColorStop(0.5, 'rgba(10,14,8,0.98)'); grad.addColorStop(1, 'rgba(4,4,2,1)');
-    ctx.fillStyle = grad; ctx.fillRect(0, 0, canvas.width, canvas.height);
-    ctx.fillStyle = 'rgba(25,30,18,0.35)';
+    ctx.fillStyle = 'rgb(1, 2, 1)';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = 'rgba(15,20,10,0.25)';
     for (let x = 0; x < canvas.width; x += 50) for (let y = 0; y < canvas.height; y += 50) { ctx.beginPath(); ctx.arc(x + Math.sin(x * 0.008 + time * 0.3) * 3, y + Math.cos(y * 0.008 + time * 0.2) * 3, 0.7, 0, Math.PI * 2); ctx.fill(); }
     for (let i = 0; i < 8; i++) { const fx = (Math.sin(time * 0.12 + i * 1.8) * 0.5 + 0.5) * canvas.width; const fy = (Math.cos(time * 0.09 + i * 2.3) * 0.5 + 0.5) * canvas.height; const fr = 80 + Math.sin(time * 0.3 + i) * 30; const fg = ctx.createRadialGradient(fx, fy, 0, fx, fy, fr); fg.addColorStop(0, 'rgba(15,30,10,0.07)'); fg.addColorStop(1, 'rgba(15,30,10,0)'); ctx.fillStyle = fg; ctx.beginPath(); ctx.arc(fx, fy, fr, 0, Math.PI * 2); ctx.fill(); }
 }
@@ -474,7 +473,7 @@ function update(time) {
 
     const stopRadius = 35; // combined radius of skull snout + cursor circle
     let baseSpeed = 0;
-    
+
     if (distToMouse > stopRadius) {
         baseSpeed = Math.min((distToMouse - stopRadius) * 0.03, 4);
         // Smooth head turning toward mouse only if not touched
@@ -537,7 +536,7 @@ function render() {
         const lp = legPairs[leg.pairIdx];
         const seg = segments[lp.seg];
         // Treat more legs as "front" so their knees bend backwards keeping feet positioned well
-        const isFront = leg.pairIdx <= 8; 
+        const isFront = leg.pairIdx <= 8;
         drawLeg(seg.x, seg.y, leg.x, leg.y, leg.liftHeight, lp.len1, lp.len2, lp.clawSize, leg.sideMul, seg.angle, isFront);
     }
 
@@ -546,19 +545,35 @@ function render() {
     drawSkull(time);
     drawParticles();
 
-    // -- Dynamic Lighting Overlay --
-    ctx.globalCompositeOperation = 'source-over';
+    const lightRadius = 200 + Math.sin(time * 2) * 15;
 
-    // Create an inverse radial gradient: clear at the cursor, dark at the edges
-    const lightRadius = 300 + Math.sin(time * 2) * 15;
-    const darknessGrad = ctx.createRadialGradient(mouse.x, mouse.y, 40, mouse.x, mouse.y, lightRadius);
-    darknessGrad.addColorStop(0, 'rgba(5, 8, 4, 0)');       // Center is fully transparent (light)
-    darknessGrad.addColorStop(0.4, 'rgba(5, 8, 4, 0.2)');   // Extended light presence
-    darknessGrad.addColorStop(1, 'rgba(2, 4, 2, 0.97)');    // Edge and beyond is much darker
+    // draw the scene first (whatever your game draws)
 
-    ctx.fillStyle = darknessGrad;
-    // The gradient automatically extends its last color stop to fill the rest of the rectangle
+    // create darkness layer
+    ctx.save();
+    ctx.fillStyle = 'rgba(65, 117, 48, 0.2)';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // keep only the light area
+    ctx.globalCompositeOperation = 'destination-out';
+
+    const lightGrad = ctx.createRadialGradient(
+        mouse.x, mouse.y, 0,
+        mouse.x, mouse.y, lightRadius
+    );
+
+    lightGrad.addColorStop(0, 'rgba(5, 8, 4, 0)');
+    lightGrad.addColorStop(0.5, 'rgba(5,8,4,0.4)');
+    lightGrad.addColorStop(0.6, 'rgba(5,8,4,0.6)');
+    lightGrad.addColorStop(0.7, 'rgba(5,8,4,0.8)');
+    lightGrad.addColorStop(0.8, 'rgba(5,8,4,0.9)');
+    lightGrad.addColorStop(0.9, 'rgba(5,8,4,0.99)');
+    lightGrad.addColorStop(1, 'rgba(5,8,4,1)');
+
+    ctx.fillStyle = lightGrad;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    ctx.restore();
 
     // -- Eye Glow Light --
     // Compute world-space positions of the two eyes (local offsets: (5, ±7) rotated by head.angle)
@@ -573,13 +588,13 @@ function render() {
         { x: eyeBaseX - Math.cos(perp) * eyeSide, y: eyeBaseY - Math.sin(perp) * eyeSide },
         { x: eyeBaseX + Math.cos(perp) * eyeSide, y: eyeBaseY + Math.sin(perp) * eyeSide },
     ];
-    const eyeGlowRadius = 90;
+    const eyeGlowRadius = 150;
     ctx.globalCompositeOperation = 'lighter';
     for (const eye of eyePositions) {
         const eyeGrad = ctx.createRadialGradient(eye.x, eye.y, 0, eye.x, eye.y, eyeGlowRadius);
-        eyeGrad.addColorStop(0,    'rgba(30, 160, 10, 0.09)');
-        eyeGrad.addColorStop(0.35, 'rgba(20, 110, 8,  0.04)');
-        eyeGrad.addColorStop(1,    'rgba(0,   0,  0,  0)');
+        eyeGrad.addColorStop(0, 'rgba(30, 160, 10, 0.06)');
+        eyeGrad.addColorStop(0.35, 'rgba(20, 110, 8,  0.025)');
+        eyeGrad.addColorStop(1, 'rgba(0,   0,  0,  0)');
         ctx.fillStyle = eyeGrad;
         ctx.beginPath();
         ctx.arc(eye.x, eye.y, eyeGlowRadius, 0, Math.PI * 2);
