@@ -101,8 +101,8 @@ function drawFootprints() {
 }
 
 // ─── Leg IK ─────────────────────────────────────────────────
-// side: 1 = left (elbow bends outward to the left), -1 = right (outward to right)
-function solveLegIK(ox, oy, tx, ty, len1, len2, side, bodyAngle) {
+// side: 1 = right, -1 = left
+function solveLegIK(ox, oy, tx, ty, len1, len2, side, bodyAngle, isFront) {
     let d = dist(ox, oy, tx, ty);
     const maxReach = (len1 + len2) * 0.95;
     if (d > maxReach) {
@@ -117,30 +117,12 @@ function solveLegIK(ox, oy, tx, ty, len1, len2, side, bodyAngle) {
     const cosElbow = clamp((len1 * len1 + d * d - len2 * len2) / (2 * len1 * d), -1, 1);
     const elbowOffset = Math.acos(cosElbow);
 
-    // Elbow bends OUTWARD from the body — perpendicular to body direction
-    // For left legs (side=1), elbow should bend to the left of the body
-    // For right legs (side=-1), elbow should bend to the right
-    const perpDir = bodyAngle + Math.PI / 2 * side;
-    const toFoot = a;
+    // Permanent bend direction prevents inverse-kinematics joint flipping.
+    // Front legs bend backward, rear legs bend forward (keeping elbows outward).
+    const bendMult = isFront ? 1 : -1;
+    const jointAngle = a + elbowOffset * side * bendMult;
 
-    // Choose elbow direction that puts the joint OUTWARD from the body
-    const opt1Angle = a + elbowOffset;
-    const opt2Angle = a - elbowOffset;
-
-    const jx1 = ox + Math.cos(opt1Angle) * len1;
-    const jy1 = oy + Math.sin(opt1Angle) * len1;
-    const jx2 = ox + Math.cos(opt2Angle) * len1;
-    const jy2 = oy + Math.sin(opt2Angle) * len1;
-
-    // Pick the joint position that is more toward the "outward" side
-    const dot1 = (jx1 - ox) * Math.cos(perpDir) + (jy1 - oy) * Math.sin(perpDir);
-    const dot2 = (jx2 - ox) * Math.cos(perpDir) + (jy2 - oy) * Math.sin(perpDir);
-
-    if (dot1 > dot2) {
-        return { jx: jx1, jy: jy1, ex: tx, ey: ty };
-    } else {
-        return { jx: jx2, jy: jy2, ex: tx, ey: ty };
-    }
+    return { jx: ox + Math.cos(jointAngle) * len1, jy: oy + Math.sin(jointAngle) * len1, ex: tx, ey: ty };
 }
 
 // ════════════════════════════════════════════════════════════
@@ -154,16 +136,24 @@ const STEP_LIFT = 7;
 const legs = [];
 for (let i = 0; i < legPairs.length; i++) {
     const seg = segments[legPairs[i].seg];
-    const perp = seg.angle + Math.PI / 2;
-    const reach = (legPairs[i].len1 + legPairs[i].len2) * 0.52;
+    const t = i / (legPairs.length - 1);
+    
+    // Shift center back so more legs point forward, and widen angle spread
+    const sweepAngle = (t - 0.6) * (Math.PI / 1.8);
+    
+    // Open up the front legs much more
+    const reachOffset = (1 - t) * 24; 
+    const reach = (legPairs[i].len1 + legPairs[i].len2) * 0.7 + reachOffset;
+
     for (let s = 0; s < 2; s++) {
         const mul = s === 0 ? 1 : -1;
+        const legAngle = seg.angle + (Math.PI / 2 + sweepAngle) * mul;
         legs.push({
             pairIdx: i,
             sideIdx: s,
             sideMul: mul,
-            x: seg.x + Math.cos(perp) * reach * mul,
-            y: seg.y + Math.sin(perp) * reach * mul,
+            x: seg.x + Math.cos(legAngle) * reach,
+            y: seg.y + Math.sin(legAngle) * reach,
             planted: true,
             stepping: false,
             stepT: 0,
@@ -196,12 +186,20 @@ function getIdealFootPos(legIndex) {
     const lp = legPairs[leg.pairIdx];
     const seg = segments[lp.seg];
     const a = seg.angle;
-    const perp = a + Math.PI / 2;
-    // Increase reach for a wider, more splayed-out stance
-    const reach = (lp.len1 + lp.len2) * 0.65;
+    
+    // Front legs slightly forward (-), middle sideways (0), rear backward (+)
+    const t = leg.pairIdx / (legPairs.length - 1);
+    
+    // Shift zero-point to t=0.6 so more legs point forward
+    const sweepAngle = (t - 0.6) * (Math.PI / 1.8);
+    const legAngle = a + (Math.PI / 2 + sweepAngle) * leg.sideMul;
+
+    // Increase reach for front legs so they are less "tight"
+    const reachOffset = (1 - t) * 24;
+    const reach = (lp.len1 + lp.len2) * 0.7 + reachOffset;
     return {
-        x: seg.x + Math.cos(perp) * reach * leg.sideMul + Math.cos(a) * 3,
-        y: seg.y + Math.sin(perp) * reach * leg.sideMul + Math.sin(a) * 3,
+        x: seg.x + Math.cos(legAngle) * reach + Math.cos(a) * 3,
+        y: seg.y + Math.sin(legAngle) * reach + Math.sin(a) * 3,
     };
 }
 
@@ -258,9 +256,9 @@ function updateFeet() {
 }
 
 // ─── Draw Leg ───────────────────────────────────────────────
-function drawLeg(originX, originY, footX, footY, liftHeight, len1, len2, clawSize, sideMul, bodyAngle) {
+function drawLeg(originX, originY, footX, footY, liftHeight, len1, len2, clawSize, sideMul, bodyAngle, isFront) {
     const fvy = footY - liftHeight;
-    const ik = solveLegIK(originX, originY, footX, fvy, len1, len2, sideMul, bodyAngle);
+    const ik = solveLegIK(originX, originY, footX, fvy, len1, len2, sideMul, bodyAngle, isFront);
 
     // Ground shadow when lifted
     if (liftHeight > 0.5) {
@@ -534,7 +532,9 @@ function render() {
     for (const leg of legs) {
         const lp = legPairs[leg.pairIdx];
         const seg = segments[lp.seg];
-        drawLeg(seg.x, seg.y, leg.x, leg.y, leg.liftHeight, lp.len1, lp.len2, lp.clawSize, leg.sideMul, seg.angle);
+        // Treat more legs as "front" so their knees bend backwards keeping feet positioned well
+        const isFront = leg.pairIdx <= 8; 
+        drawLeg(seg.x, seg.y, leg.x, leg.y, leg.liftHeight, lp.len1, lp.len2, lp.clawSize, leg.sideMul, seg.angle, isFront);
     }
 
     drawSpine(time);
