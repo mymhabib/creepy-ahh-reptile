@@ -14,12 +14,16 @@ let mouse = { x: canvas.width / 2, y: canvas.height / 2 };
 
 // Idle / circling state
 let mouseLastMoved = performance.now();
-let idleState = 'normal';   // 'normal' | 'circling' | 'stopped'
+let idleState = 'normal';   // 'normal' | 'circling' | 'stopped' | 'fleeing'
 let circlingStartTime = null;
 let circleAngle = 0;         // current orbital angle (radians)
 let circleSpeed = 0.012;     // current angular speed (randomised)
 let circleSpeedTarget = 0.012;
 let circleSpeedChangeTimer = 0;
+
+// Fleeing state
+let fleeStartTime = null;
+let fleeAngle = 0;
 
 // Jag / zigzag offsets for the orbit
 let orbitRadiusOffset = 0;       // current extra radius wobble
@@ -34,9 +38,24 @@ canvas.addEventListener('mousemove', e => {
     mouse.x = e.clientX;
     mouse.y = e.clientY;
     mouseLastMoved = performance.now();
-    if (idleState !== 'normal') {
+    if (idleState === 'circling' || idleState === 'stopped') {
         idleState = 'normal';
         circlingStartTime = null;
+    }
+});
+
+canvas.addEventListener('mousedown', e => {
+    // Only trigger flee if currently in normal state (or already circling/stopped)
+    if (idleState === 'fleeing') return;
+
+    if (segments.length > 0) {
+        const head = segments[0];
+        if (dist(head.x, head.y, mouse.x, mouse.y) <= 30) {
+            idleState = 'fleeing';
+            fleeStartTime = performance.now();
+            // Flee directly away from the current mouse position
+            fleeAngle = angleTo(mouse.x, mouse.y, head.x, head.y);
+        }
     }
 });
 
@@ -59,9 +78,9 @@ const SEGMENT_SPACING = 11;
 const segments = [];
 for (let i = 0; i < SEGMENT_COUNT; i++) {
     segments.push({
-        x: canvas.width / 2,
-        y: canvas.height / 2 + i * SEGMENT_SPACING,
-        angle: -Math.PI / 2,
+        x: canvas.width + 400 + i * SEGMENT_SPACING,
+        y: canvas.height / 2,
+        angle: Math.PI,
         width: 0,
     });
 }
@@ -74,7 +93,6 @@ for (let i = 0; i < SEGMENT_COUNT; i++) {
 }
 
 // ─── Leg Configuration ─────────────────────────────────────
-// 14 pairs! Centipede-like density along segments 2-22
 // Legs gradually get smaller toward the rear
 const legPairs = [];
 const LEG_PAIR_COUNT = 14;
@@ -488,6 +506,7 @@ function drawEyeTrail(time) {
 // ─── Update Physics ─────────────────────────────────────────
 const MAX_TURN_PER_SEGMENT = 0.12;
 let walkCycle = 0;
+let headBodyAngle = 0; // True physical heading, isolated from visual skull sway
 
 // Max normal walk speed (used as circling speed cap)
 const MAX_WALK_SPEED = 2;
@@ -520,6 +539,7 @@ function updateIdleState() {
         }
     }
     // 'stopped' stays stopped until mousemove resets to 'normal'
+    // 'fleeing' state manages its own transitions logic inside update()
 }
 
 function updateCircleSpeed(dt) {
@@ -570,6 +590,50 @@ function update(time, dt) {
     if (idleState === 'stopped') {
         // Reptile is frozen — no movement at all
         finalSpeed = 0;
+    } else if (idleState === 'fleeing') {
+        const fleeElapsedMs = performance.now() - fleeStartTime;
+        const RUN_TIME = 5000;
+        const STOP_TIME = 2500;
+
+        if (fleeElapsedMs < RUN_TIME) {
+            // Phase 1: Running away (0 to 5 seconds)
+            let currentFleeSpeed = MAX_WALK_SPEED * 2.5; // Fast!
+
+            // Gradual stop over the last 1.5 seconds of the run
+            const stopTransitionMs = 1500;
+            if (fleeElapsedMs > RUN_TIME - stopTransitionMs) {
+                const stopProgress = (fleeElapsedMs - (RUN_TIME - stopTransitionMs)) / stopTransitionMs;
+                const slowFactor = (1 + Math.cos(stopProgress * Math.PI)) / 2; // Cosine easing 1 -> 0
+                currentFleeSpeed *= Math.max(0, slowFactor);
+            }
+
+            const lurch = 1 + Math.sin(walkCycle * 2 - Math.PI / 2) * 0.25;
+            finalSpeed = currentFleeSpeed * lurch;
+
+            headBodyAngle = fleeAngle;
+            head.angle = fleeAngle; // Look where we're going
+            swaggerAngle = headBodyAngle + Math.sin(walkCycle) * 0.15;
+            walkCycle += currentFleeSpeed * 0.06;
+
+        } else if (fleeElapsedMs < RUN_TIME + STOP_TIME) {
+            // Phase 2: Stopped, looking back at the light (5 to 7.5 seconds)
+            finalSpeed = 0;
+            headBodyAngle = fleeAngle; // Body still points away
+
+            // Lerp head visually towards the cursor
+            const toCenter = angleTo(head.x, head.y, mouse.x, mouse.y);
+            head.angle = lerpAngle(head.angle, toCenter, 0.08);
+
+            swaggerAngle = headBodyAngle; // No wiggle when stopped
+        } else {
+            // Phase 3: Done fleeing, reset
+            idleState = 'normal';
+            mouseLastMoved = performance.now(); // Prevent immediate circling jump
+            headBodyAngle = fleeAngle;
+            swaggerAngle = headBodyAngle;
+            finalSpeed = 0;
+        }
+
     } else if (idleState === 'circling') {
         updateCircleSpeed(dt);
         updateOrbitJitter(dt);
@@ -610,7 +674,9 @@ function update(time, dt) {
 
         const lurch = 1 + Math.sin(walkCycle * 2 - Math.PI / 2) * 0.25;
         finalSpeed = arcSpeed * lurch;
-        swaggerAngle = bodyMoveAngle + Math.sin(walkCycle) * 0.15; // body steers via bodyMoveAngle
+
+        headBodyAngle = bodyMoveAngle;
+        swaggerAngle = headBodyAngle + Math.sin(walkCycle) * 0.15; // body steers via true heading
         walkCycle += arcSpeed * 0.06;
     } else {
         // ── Normal behaviour ───────────────────────────────────
@@ -626,7 +692,8 @@ function update(time, dt) {
 
         if (baseSpeed > 0.1) walkCycle += baseSpeed * 0.06;
 
-        swaggerAngle = head.angle + Math.sin(walkCycle) * 0.25;
+        headBodyAngle = head.angle;
+        swaggerAngle = headBodyAngle + Math.sin(walkCycle) * 0.25;
         const lurch = 1 + Math.sin(walkCycle * 2 - Math.PI / 2) * 0.25;
         finalSpeed = baseSpeed * lurch;
     }
@@ -642,12 +709,15 @@ function update(time, dt) {
         const a = angleTo(curr.x, curr.y, prev.x, prev.y);
         const d = dist(curr.x, curr.y, prev.x, prev.y);
         if (d > SEGMENT_SPACING) { curr.x += Math.cos(a) * (d - SEGMENT_SPACING); curr.y += Math.sin(a) * (d - SEGMENT_SPACING); }
+
         const idealAngle = angleTo(curr.x, curr.y, prev.x, prev.y);
-        let angleDiff = idealAngle - prev.angle;
+        const prevAngle = (i === 1) ? headBodyAngle : prev.angle;
+        let angleDiff = idealAngle - prevAngle;
+
         while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
         while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
         const cd = clamp(angleDiff, -MAX_TURN_PER_SEGMENT, MAX_TURN_PER_SEGMENT);
-        curr.angle = lerpAngle(curr.angle, prev.angle + cd + Math.PI, 0.6);
+        curr.angle = lerpAngle(curr.angle, prevAngle + cd + Math.PI, 0.6);
         curr.vx = curr.x - oldX;
         curr.vy = curr.y - oldY;
     }
@@ -687,30 +757,31 @@ function render() {
     const lightRadius = 200 + Math.sin(time * 2) * 15;
 
 
-    // create darkness layer
+    // ─── Ambient Darkness & Light (Optimized) ──────────────────
     ctx.save();
-    ctx.fillStyle = 'rgba(65, 117, 48, 0.2)';
+
+    // 1. Tint the entire canvas slightly green (as before)
+    ctx.fillStyle = 'rgba(255, 227, 86, 0.2)';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    // keep only the light area
-    ctx.globalCompositeOperation = 'destination-out';
-
-    const lightGrad = ctx.createRadialGradient(
+    // 2. Draw a dark overlay that is transparent at the cursor and opaque black at the edges.
+    // This perfectly mimics the original `destination-out` visual effect but is much faster.
+    const darkGrad = ctx.createRadialGradient(
         mouse.x, mouse.y, 0,
         mouse.x, mouse.y, lightRadius
     );
+    // The alpha values are inverted compared to the old destination-out:
+    // 0 alpha at center = fully visible canvas. High alpha at edge = almost pitch black.
+    darkGrad.addColorStop(0, 'rgba(10, 10, 10, 0)');
+    darkGrad.addColorStop(0.2, 'rgba(10, 10, 10, 0.1)');
+    darkGrad.addColorStop(0.4, 'rgba(10, 10, 10, 0.2)');
+    darkGrad.addColorStop(0.5, 'rgba(10, 10, 10, 0.4)');
+    darkGrad.addColorStop(0.6, 'rgba(10, 10, 10, 0.6)');
 
-    lightGrad.addColorStop(0, 'rgba(5, 8, 4, 0)');
-    lightGrad.addColorStop(0.2, 'rgba(5, 8, 4, 0.1)');
-    lightGrad.addColorStop(0.4, 'rgba(5, 8, 4, 0.2)');
-    lightGrad.addColorStop(0.5, 'rgba(5,8,4,0.4)');
-    lightGrad.addColorStop(0.6, 'rgba(5,8,4,0.6)');
-    // lightGrad.addColorStop(0.7, 'rgba(5,8,4,0.8)');
-    // lightGrad.addColorStop(0.8, 'rgba(5,8,4,0.9)');
-    // lightGrad.addColorStop(0.9, 'rgba(5,8,4,0.99)');
-    lightGrad.addColorStop(1, 'rgba(5,8,4,0.994)');
+    // Smooth darkness extending to the edges of the screen
+    darkGrad.addColorStop(1, 'rgba(10, 10, 10, 0.994)');
 
-    ctx.fillStyle = lightGrad;
+    ctx.fillStyle = darkGrad;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
     ctx.restore();
