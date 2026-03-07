@@ -560,6 +560,33 @@ function render() {
     // The gradient automatically extends its last color stop to fill the rest of the rectangle
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
+    // -- Eye Glow Light --
+    // Compute world-space positions of the two eyes (local offsets: (5, ±7) rotated by head.angle)
+    const headSeg = segments[0];
+    const ha = headSeg.angle;
+    const perp = ha + Math.PI / 2;
+    const eyeForward = 5;
+    const eyeSide = 7;
+    const eyeBaseX = headSeg.x + Math.cos(ha) * eyeForward;
+    const eyeBaseY = headSeg.y + Math.sin(ha) * eyeForward;
+    const eyePositions = [
+        { x: eyeBaseX - Math.cos(perp) * eyeSide, y: eyeBaseY - Math.sin(perp) * eyeSide },
+        { x: eyeBaseX + Math.cos(perp) * eyeSide, y: eyeBaseY + Math.sin(perp) * eyeSide },
+    ];
+    const eyeGlowRadius = 90;
+    ctx.globalCompositeOperation = 'lighter';
+    for (const eye of eyePositions) {
+        const eyeGrad = ctx.createRadialGradient(eye.x, eye.y, 0, eye.x, eye.y, eyeGlowRadius);
+        eyeGrad.addColorStop(0,    'rgba(30, 160, 10, 0.09)');
+        eyeGrad.addColorStop(0.35, 'rgba(20, 110, 8,  0.04)');
+        eyeGrad.addColorStop(1,    'rgba(0,   0,  0,  0)');
+        ctx.fillStyle = eyeGrad;
+        ctx.beginPath();
+        ctx.arc(eye.x, eye.y, eyeGlowRadius, 0, Math.PI * 2);
+        ctx.fill();
+    }
+    ctx.globalCompositeOperation = 'source-over';
+
     // drawCursor(time);
 }
 
