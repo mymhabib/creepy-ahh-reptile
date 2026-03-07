@@ -472,10 +472,14 @@ function update(time) {
     const toMouse = angleTo(head.x, head.y, mouse.x, mouse.y);
     const distToMouse = dist(head.x, head.y, mouse.x, mouse.y);
 
-    let baseSpeed = Math.min(distToMouse * 0.03, 4);
-
-    // Smooth head turning toward mouse
-    head.angle = lerpAngle(head.angle, toMouse, 0.06);
+    const stopRadius = 35; // combined radius of skull snout + cursor circle
+    let baseSpeed = 0;
+    
+    if (distToMouse > stopRadius) {
+        baseSpeed = Math.min((distToMouse - stopRadius) * 0.03, 4);
+        // Smooth head turning toward mouse only if not touched
+        head.angle = lerpAngle(head.angle, toMouse, 0.06);
+    }
 
     // Accumulate walk cycle based on distance traveled
     if (baseSpeed > 0.1) {
