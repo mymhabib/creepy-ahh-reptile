@@ -471,7 +471,7 @@ function update(time) {
     const toMouse = angleTo(head.x, head.y, mouse.x, mouse.y);
     const distToMouse = dist(head.x, head.y, mouse.x, mouse.y);
 
-    const stopRadius = 35; // combined radius of skull snout + cursor circle
+    const stopRadius = 120; // combined radius of skull snout + cursor circle
     let baseSpeed = 0;
 
     if (distToMouse > stopRadius) {
@@ -547,7 +547,6 @@ function render() {
 
     const lightRadius = 200 + Math.sin(time * 2) * 15;
 
-    // draw the scene first (whatever your game draws)
 
     // create darkness layer
     ctx.save();
@@ -563,11 +562,13 @@ function render() {
     );
 
     lightGrad.addColorStop(0, 'rgba(5, 8, 4, 0)');
+    lightGrad.addColorStop(0.2, 'rgba(5, 8, 4, 0.1)');
+    lightGrad.addColorStop(0.4, 'rgba(5, 8, 4, 0.2)');
     lightGrad.addColorStop(0.5, 'rgba(5,8,4,0.4)');
     lightGrad.addColorStop(0.6, 'rgba(5,8,4,0.6)');
-    lightGrad.addColorStop(0.7, 'rgba(5,8,4,0.8)');
-    lightGrad.addColorStop(0.8, 'rgba(5,8,4,0.9)');
-    lightGrad.addColorStop(0.9, 'rgba(5,8,4,0.99)');
+    // lightGrad.addColorStop(0.7, 'rgba(5,8,4,0.8)');
+    // lightGrad.addColorStop(0.8, 'rgba(5,8,4,0.9)');
+    // lightGrad.addColorStop(0.9, 'rgba(5,8,4,0.99)');
     lightGrad.addColorStop(1, 'rgba(5,8,4,1)');
 
     ctx.fillStyle = lightGrad;
@@ -601,6 +602,7 @@ function render() {
         ctx.fill();
     }
     ctx.globalCompositeOperation = 'source-over';
+
 
     // drawCursor(time);
 }
