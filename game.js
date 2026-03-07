@@ -27,6 +27,8 @@ let orbitRadiusOffsetTarget = 0; // target wobble
 let orbitRadiusChangeTimer = 0;  // countdown to next radius dart
 let orbitAngleJitter = 0;        // temporary forward/back angle kick
 let orbitAngleJitterTimer = 0;   // countdown to next angle jitter
+// Independent movement direction for body during circling (decoupled from head.angle)
+let bodyMoveAngle = 0;
 
 canvas.addEventListener('mousemove', e => {
     mouse.x = e.clientX;
@@ -507,6 +509,7 @@ function updateIdleState() {
             // Initialise orbit angle to current head→mouse angle so we start tangentially
             const head = segments[0];
             circleAngle = angleTo(mouse.x, mouse.y, head.x, head.y);
+            bodyMoveAngle = head.angle; // seed with current heading so no jump
             circleSpeed = 0.008 + Math.random() * 0.012;
             circleSpeedTarget = circleSpeed;
             circleSpeedChangeTimer = 0;
@@ -578,15 +581,36 @@ function update(time, dt) {
         const orbitX = mouse.x + Math.cos(jagAngle) * jagRadius;
         const orbitY = mouse.y + Math.sin(jagAngle) * jagRadius;
 
-        // Steer head toward orbit target
+        // bodyMoveAngle tracks the orbit direction independently — never read from head.angle
         const toOrbit = angleTo(head.x, head.y, orbitX, orbitY);
-        head.angle = lerpAngle(head.angle, toOrbit, 0.08);
+        bodyMoveAngle = lerpAngle(bodyMoveAngle, toOrbit, 0.08);
+
+        // After 3 s of circling the skull turns to face the cursor light.
+        // head.angle is purely visual and has no effect on movement direction.
+        const circlingElapsed = (performance.now() - circlingStartTime) / 1000;
+        if (circlingElapsed > 3) {
+            const toCenter = angleTo(head.x, head.y, mouse.x, mouse.y);
+            head.angle = lerpAngle(head.angle, toCenter, 0.05);
+        } else {
+            head.angle = bodyMoveAngle; // before 3 s, head faces the orbit direction normally
+        }
 
         // Speed = arc speed capped at MAX_WALK_SPEED
-        const arcSpeed = Math.min(circleSpeed * ORBIT_RADIUS, MAX_WALK_SPEED);
+        let arcSpeed = Math.min(circleSpeed * ORBIT_RADIUS, MAX_WALK_SPEED);
+
+        // Slow down smoothly over the last 5 seconds before fully stopping
+        const circlingElapsedMs = performance.now() - circlingStartTime;
+        const stopTransitionDuration = 5000;
+        if (circlingElapsedMs > CIRCLE_STOP_AFTER - stopTransitionDuration) {
+            const stopProgress = (circlingElapsedMs - (CIRCLE_STOP_AFTER - stopTransitionDuration)) / stopTransitionDuration;
+            // Cosine easing (1.0 to 0.0)
+            const slowFactor = (1 + Math.cos(stopProgress * Math.PI)) / 2;
+            arcSpeed *= Math.max(0, slowFactor);
+        }
+
         const lurch = 1 + Math.sin(walkCycle * 2 - Math.PI / 2) * 0.25;
         finalSpeed = arcSpeed * lurch;
-        swaggerAngle = head.angle + Math.sin(walkCycle) * 0.15;
+        swaggerAngle = bodyMoveAngle + Math.sin(walkCycle) * 0.15; // body steers via bodyMoveAngle
         walkCycle += arcSpeed * 0.06;
     } else {
         // ── Normal behaviour ───────────────────────────────────
