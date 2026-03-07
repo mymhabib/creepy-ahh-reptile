@@ -550,11 +550,11 @@ function render() {
     ctx.globalCompositeOperation = 'source-over';
 
     // Create an inverse radial gradient: clear at the cursor, dark at the edges
-    const lightRadius = 250 + Math.sin(time * 2) * 10;
-    const darknessGrad = ctx.createRadialGradient(mouse.x, mouse.y, 20, mouse.x, mouse.y, lightRadius);
+    const lightRadius = 300 + Math.sin(time * 2) * 15;
+    const darknessGrad = ctx.createRadialGradient(mouse.x, mouse.y, 40, mouse.x, mouse.y, lightRadius);
     darknessGrad.addColorStop(0, 'rgba(5, 8, 4, 0)');       // Center is fully transparent (light)
-    darknessGrad.addColorStop(0.5, 'rgba(5, 8, 4, 0.3)');   // Mid-range shadow
-    darknessGrad.addColorStop(1, 'rgba(5, 8, 4, 0.85)');    // Edge and beyond is darkness
+    darknessGrad.addColorStop(0.4, 'rgba(5, 8, 4, 0.2)');   // Extended light presence
+    darknessGrad.addColorStop(1, 'rgba(2, 4, 2, 0.97)');    // Edge and beyond is much darker
 
     ctx.fillStyle = darknessGrad;
     // The gradient automatically extends its last color stop to fill the rest of the rectangle
