@@ -684,7 +684,7 @@ let headBodyAngle = 0; // True physical heading, isolated from visual skull sway
 // Max normal walk speed (used as circling speed cap)
 const MAX_WALK_SPEED = 2;
 // Orbit radius: just outside the cursor visual radius (stopRadius + a small gap)
-const ORBIT_RADIUS = 230;
+const ORBIT_RADIUS = 220;
 // Idle delay before circling begins (ms)
 const IDLE_CIRCLE_DELAY = 10000;
 // Duration of circling before stopping (ms)
@@ -952,7 +952,7 @@ function render() {
     darkGrad.addColorStop(0.6, 'rgba(10, 10, 10, 0.6)');
 
     // Smooth darkness extending to the edges of the screen
-    darkGrad.addColorStop(1, 'rgba(10, 10, 10, 0.994)');
+    darkGrad.addColorStop(1, 'rgba(10, 10, 10, 0.991)');
 
     ctx.fillStyle = darkGrad;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
