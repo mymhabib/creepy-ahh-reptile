@@ -348,16 +348,20 @@ function drawClaw(x, y, angle, size) {
     const toes = [-1.2, -0.4, 0.4, 1.2];
     for (const t of toes) {
         const ca = angle + t * 0.35;
-        ctx.strokeStyle = 'rgba(200,205,180,0.8)'; ctx.lineWidth = 1.2;
-        const tex = x + Math.cos(ca) * size * 0.55, tey = y + Math.sin(ca) * size * 0.55;
+        // Obsidian/pitch black base claw
+        ctx.strokeStyle = 'rgba(15,15,15,0.9)'; ctx.lineWidth = 1.2;
+        const tex = x + Math.cos(ca) * size * 0.8, tey = y + Math.sin(ca) * size * 0.8;
         ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(tex, tey); ctx.stroke();
+
+        // Curved scythe-like extended tips
         const cla = ca - 0.12;
-        const tipX = tex + Math.cos(cla) * size * 0.4, tipY = tey + Math.sin(cla) * size * 0.4;
-        ctx.strokeStyle = 'rgba(240,240,220,0.85)'; ctx.lineWidth = 1;
+        const tipX = tex + Math.cos(cla) * size * 1.4, tipY = tey + Math.sin(cla) * size * 1.4;
+        ctx.strokeStyle = 'rgba(5,5,5,0.95)'; ctx.lineWidth = 1;
         ctx.beginPath(); ctx.moveTo(tex, tey);
-        ctx.quadraticCurveTo(tex + Math.cos(ca) * size * 0.2, tey + Math.sin(ca) * size * 0.2, tipX, tipY); ctx.stroke();
+        ctx.quadraticCurveTo(tex + Math.cos(ca) * size * 0.4, tey + Math.sin(ca) * size * 0.4, tipX, tipY); ctx.stroke();
     }
-    ctx.fillStyle = 'rgba(180,185,160,0.7)'; ctx.beginPath(); ctx.arc(x, y, 2.5, 0, Math.PI * 2); ctx.fill();
+    // Dark connection joint
+    ctx.fillStyle = 'rgba(40,45,35,0.8)'; ctx.beginPath(); ctx.arc(x, y, 2.5, 0, Math.PI * 2); ctx.fill();
 }
 
 // ─── Draw Spine & Ribs ─────────────────────────────────────
@@ -367,7 +371,8 @@ function drawSpine(time) {
         const s = segments[i], sn = segments[i + 1];
         const perp = s.angle + Math.PI / 2, perpN = sn.angle + Math.PI / 2;
         if (i > 2 && i < SEGMENT_COUNT - 5) {
-            ctx.fillStyle = 'rgba(30,45,25,0.18)';
+            // Shadowy black shroud membrane connecting the spine
+            ctx.fillStyle = 'rgba(5,5,5,0.6)';
             ctx.beginPath();
             ctx.moveTo(s.x + Math.cos(perp) * s.width, s.y + Math.sin(perp) * s.width);
             ctx.lineTo(sn.x + Math.cos(perpN) * sn.width, sn.y + Math.sin(perpN) * sn.width);
@@ -376,6 +381,10 @@ function drawSpine(time) {
             ctx.closePath(); ctx.fill();
         }
     }
+
+
+
+    // Spine
     ctx.shadowColor = 'rgba(40,160,30,0.1)'; ctx.shadowBlur = 8;
     for (let i = 1; i < SEGMENT_COUNT; i++) {
         const s0 = segments[i - 1], s1 = segments[i];
@@ -384,44 +393,55 @@ function drawSpine(time) {
         ctx.beginPath(); ctx.moveTo(s0.x, s0.y); ctx.lineTo(s1.x, s1.y); ctx.stroke();
         const size = 4.5 - (i / SEGMENT_COUNT) * 3;
         ctx.fillStyle = `rgba(190,200,170,${alpha})`; ctx.beginPath(); ctx.arc(s1.x, s1.y, size, 0, Math.PI * 2); ctx.fill();
-        if (i > 1 && i < SEGMENT_COUNT - 3 && i % 2 === 0) {
-            const spikeLen = (1 - i / SEGMENT_COUNT) * 12 + 4; // Longer for hair
-            ctx.strokeStyle = `rgba(160,170,140,${alpha * 0.5})`;
+        // Bony scutes along the spine (curved spikes)
+        if (i > 2 && i < SEGMENT_COUNT - 3 && i % 2 === 0) {
+            const spikeLen = (1 - i / SEGMENT_COUNT) * 14 + 6;
+            const spikeBase = size * 1.5;
+
+            // Calculate a stable angle pointing straight back along the spine's curve
+            const backAngle = angleTo(s1.x, s1.y, s0.x, s0.y);
+            const perp = backAngle + Math.PI / 2;
+
+            ctx.fillStyle = `rgba(200,210,185,${alpha * 0.9})`;
+            ctx.strokeStyle = `rgba(110,120,90,${alpha * 0.8})`;
+            ctx.lineWidth = 1.2;
+
+            // Left and Right base points
+            const bx1 = s1.x + Math.cos(perp) * spikeBase;
+            const by1 = s1.y + Math.sin(perp) * spikeBase;
+            const bx2 = s1.x - Math.cos(perp) * spikeBase;
+            const by2 = s1.y - Math.sin(perp) * spikeBase;
+
+            // Tip of the spike
+            const ex = s1.x + Math.cos(backAngle) * spikeLen;
+            const ey = s1.y + Math.sin(backAngle) * spikeLen;
+
+            // Control point pulls the spike upward to create a hooked/curved look
+            const cpPush = spikeLen * 0.6;
+            const cpX = s1.x + Math.cos(backAngle) * (spikeLen * 0.3) + Math.cos(perp) * cpPush;
+            const cpY = s1.y + Math.sin(backAngle) * (spikeLen * 0.3) + Math.sin(perp) * cpPush;
+
+            ctx.beginPath();
+            ctx.moveTo(bx1, by1);
+            // Curve to the tip
+            ctx.quadraticCurveTo(cpX, cpY, ex, ey);
+            // Straight edge or slight inner curve back to the base
+            ctx.lineTo(bx2, by2);
+            ctx.closePath();
+
+            ctx.fill();
+            ctx.stroke();
+
+            // Add a subtle highlight line indicating the ridge of the scute
+            ctx.strokeStyle = `rgba(240,250,225,${alpha * 0.5})`;
             ctx.lineWidth = 0.8;
-            const hairBaseA = s1.angle + Math.PI;
-            // Wave based on time and segment index
-            const wave = Math.sin(time * 5 - i * 0.25) * 0.45;
-            // Draw 3 hairs per segment
-            for (let h = -1; h <= 1; h++) {
-                const hA = hairBaseA + h * 0.2 + wave;
-                ctx.beginPath();
-                ctx.moveTo(s1.x, s1.y);
-                const cpX = s1.x + Math.cos(hA - wave * 0.5) * spikeLen * 0.5;
-                const cpY = s1.y + Math.sin(hA - wave * 0.5) * spikeLen * 0.5;
-                const ex = s1.x + Math.cos(hA) * spikeLen;
-                const ey = s1.y + Math.sin(hA) * spikeLen;
-                ctx.quadraticCurveTo(cpX, cpY, ex, ey);
-                ctx.stroke();
-            }
+            ctx.beginPath();
+            ctx.moveTo(s1.x, s1.y);
+            ctx.quadraticCurveTo(cpX * 0.9 + s1.x * 0.1, cpY * 0.9 + s1.y * 0.1, ex, ey);
+            ctx.stroke();
         }
     }
-    // Ribs
-    for (let i = 3; i < 22; i++) {
-        const seg = segments[i];
-        const rp = Math.abs(i - 12) / 10;
-        const rl = (1 - rp) * seg.width * 1.8 + 3;
-        const perp = seg.angle + Math.PI / 2;
-        const alpha = (1 - rp) * 0.4;
-        ctx.strokeStyle = `rgba(150,160,130,${alpha})`; ctx.lineWidth = 1.2;
-        for (const dir of [1, -1]) {
-            const ex = seg.x + Math.cos(perp) * rl * dir;
-            const ey = seg.y + Math.sin(perp) * rl * dir;
-            const cpx = seg.x + Math.cos(perp) * rl * 0.6 * dir + Math.cos(seg.angle + Math.PI) * 4;
-            const cpy = seg.y + Math.sin(perp) * rl * 0.6 * dir + Math.sin(seg.angle + Math.PI) * 4;
-            ctx.beginPath(); ctx.moveTo(seg.x, seg.y); ctx.quadraticCurveTo(cpx, cpy, ex, ey); ctx.stroke();
-            ctx.fillStyle = `rgba(140,150,120,${alpha * 0.7})`; ctx.beginPath(); ctx.arc(ex, ey, 1, 0, Math.PI * 2); ctx.fill();
-        }
-    }
+
     ctx.shadowBlur = 0;
 }
 
@@ -429,38 +449,126 @@ function drawSpine(time) {
 function drawSkull(time) {
     const head = segments[0]; const a = head.angle;
     const hs = dist(head.x, head.y, mouse.x, mouse.y);
-    const jaw = Math.min(hs / 200, 1) * 0.15 + Math.sin(time * 2) * 0.03;
+    // Jaw opens wider as distance grows — feels hungry
+    const jaw = Math.min(hs / 180, 1) * 0.32 + Math.sin(time * 1.9) * 0.025;
+
     ctx.save(); ctx.translate(head.x, head.y); ctx.rotate(a);
-    // Lower jaw
+
+    // --- LOWER JAW ---
     ctx.save(); ctx.rotate(jaw);
-    ctx.fillStyle = 'rgba(175,185,160,0.9)'; ctx.beginPath(); ctx.ellipse(12, 5, 14, 5, 0.1, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = 'rgba(230,235,210,0.95)';
-    for (let t = 0; t < 9; t++) { const tx = 6 + t * 2.2; const tl = 3 + (t === 1 || t === 7 ? 3 : t === 3 || t === 5 ? 2.5 : 1.5); ctx.beginPath(); ctx.moveTo(tx, 5); ctx.lineTo(tx + 0.6, 5 + tl); ctx.lineTo(tx - 0.6, 5 + tl); ctx.closePath(); ctx.fill(); }
+    // Main lower jaw body — elongated and heavy
+    ctx.fillStyle = 'rgba(155,165,142,0.95)';
+    ctx.strokeStyle = 'rgba(75,85,65,0.7)'; ctx.lineWidth = 1.3;
+    ctx.beginPath(); ctx.ellipse(12, 5, 16, 5.5, 0.12, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    // Lower teeth — long, uneven, sharp
+    ctx.fillStyle = 'rgba(228,235,215,0.97)';
+    const lTeeth = [6, 9, 12, 15, 18, 21, 24, 27];
+    const lLens = [5, 8, 5, 9, 4, 7, 5, 3]; // deliberately uneven
+    for (let i = 0; i < lTeeth.length; i++) {
+        const tx = lTeeth[i], tl = lLens[i];
+        ctx.beginPath();
+        ctx.moveTo(tx, 4);
+        ctx.lineTo(tx + 0.8, 4 + tl);
+        ctx.lineTo(tx - 0.8, 4 + tl);
+        ctx.closePath(); ctx.fill();
+    }
     ctx.restore();
-    // Upper skull
-    ctx.save(); ctx.rotate(-jaw * 0.5);
-    ctx.fillStyle = 'rgba(195,205,180,0.95)'; ctx.beginPath(); ctx.ellipse(-2, 0, 14, 12, 0, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = 'rgba(190,200,175,0.93)'; ctx.beginPath(); ctx.ellipse(14, 0, 14, 7, 0, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = 'rgba(170,180,155,0.8)'; ctx.beginPath(); ctx.ellipse(2, -8, 8, 3, -0.2, 0, Math.PI); ctx.fill(); ctx.beginPath(); ctx.ellipse(2, 8, 8, 3, 0.2, Math.PI, Math.PI * 2); ctx.fill();
-    ctx.strokeStyle = 'rgba(120,130,100,0.6)'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(24, 0); ctx.stroke();
-    ctx.fillStyle = 'rgba(20,25,15,0.6)'; ctx.beginPath(); ctx.ellipse(-6, -6, 4, 3, 0.3, 0, Math.PI * 2); ctx.fill(); ctx.beginPath(); ctx.ellipse(-6, 6, 4, 3, -0.3, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = 'rgba(5,5,2,0.97)'; ctx.beginPath(); ctx.ellipse(4, -7, 6, 5, 0.15, 0, Math.PI * 2); ctx.fill(); ctx.beginPath(); ctx.ellipse(4, 7, 6, 5, -0.15, 0, Math.PI * 2); ctx.fill();
-    ctx.strokeStyle = 'rgba(80,70,50,0.5)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.ellipse(4, -7, 5, 4, 0.15, 0, Math.PI * 2); ctx.stroke(); ctx.beginPath(); ctx.ellipse(4, 7, 5, 4, -0.15, 0, Math.PI * 2); ctx.stroke();
-    const ep = 0.5 + Math.sin(time * 3.5) * 0.3 + Math.sin(time * 7) * 0.15;
-    ctx.shadowColor = 'rgba(80,255,30,0.9)'; ctx.shadowBlur = 18 + Math.sin(time * 4) * 8;
-    ctx.fillStyle = `rgba(60,200,20,${ep * 0.5})`; ctx.beginPath(); ctx.arc(5, -7, 4, 0, Math.PI * 2); ctx.fill(); ctx.beginPath(); ctx.arc(5, 7, 4, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = `rgba(120,255,50,${ep})`; ctx.beginPath(); ctx.arc(5, -7, 2.5, 0, Math.PI * 2); ctx.fill(); ctx.beginPath(); ctx.arc(5, 7, 2.5, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = `rgba(200,255,150,${ep * 1.2})`; ctx.beginPath(); ctx.ellipse(5.5, -7, 0.8, 2.2, 0, 0, Math.PI * 2); ctx.fill(); ctx.beginPath(); ctx.ellipse(5.5, 7, 0.8, 2.2, 0, 0, Math.PI * 2); ctx.fill();
+
+    // --- UPPER SKULL (overall head) ---
+    ctx.save(); ctx.rotate(-jaw * 0.4);
+
+    // Cranium — main large dome, slightly enlarged
+    ctx.fillStyle = 'rgba(168,178,155,0.97)';
+    ctx.strokeStyle = 'rgba(75,85,65,0.7)'; ctx.lineWidth = 1.4;
+    ctx.beginPath(); ctx.ellipse(-2, 0, 16, 13, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+
+    // Snout region — elongated forward
+    ctx.fillStyle = 'rgba(162,172,148,0.96)';
+    ctx.beginPath(); ctx.ellipse(14, 0, 16, 7.5, 0, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+
+    // Brow ridge shadows (makes it look angry and sunken)
+    ctx.fillStyle = 'rgba(120,130,110,0.5)';
+    ctx.beginPath(); ctx.ellipse(2, -9, 9, 3.5, -0.25, 0, Math.PI); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(2, 9, 9, 3.5, 0.25, Math.PI, Math.PI * 2); ctx.fill();
+
+    // Central skull suture — a deeply unsettling feature of real skulls
+    ctx.strokeStyle = 'rgba(65,75,55,0.6)'; ctx.lineWidth = 1.2;
+    ctx.beginPath(); ctx.moveTo(-14, 0); ctx.lineTo(24, 0); ctx.stroke();
+
+    // Additional bone suture lines — like a cracked old skull
+    ctx.lineWidth = 0.7; ctx.strokeStyle = 'rgba(65,75,55,0.45)';
+    ctx.beginPath(); ctx.moveTo(-8, -5); ctx.quadraticCurveTo(-4, 0, -8, 5); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(4, -9); ctx.quadraticCurveTo(6, -4, 4, 0); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(4, 9); ctx.quadraticCurveTo(6, 4, 4, 0); ctx.stroke();
+
+    // Deep crack on the upper cranium
+    ctx.strokeStyle = 'rgba(50,60,42,0.65)'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(-10, -8); ctx.lineTo(-6, -3); ctx.lineTo(-10, 2); ctx.stroke();
+
+    // === NOSTRILS ===
+    ctx.fillStyle = 'rgba(18,22,14,0.88)';
+    ctx.beginPath(); ctx.ellipse(25, -2, 2.2, 1.2, 0.35, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(25, 2, 2.2, 1.2, -0.35, 0, Math.PI * 2); ctx.fill();
+
+    // Upper teeth — long, jagged, longer than original
+    ctx.fillStyle = 'rgba(228,235,215,0.97)';
+    const uTeeth = [6, 9, 12, 15, 18, 21, 24, 27];
+    const uLens = [6, 9, 6, 10, 5, 8, 5, 3];
+    for (let i = 0; i < uTeeth.length; i++) {
+        const tx = uTeeth[i], tl = uLens[i];
+        ctx.beginPath();
+        ctx.moveTo(tx, -4);
+        ctx.lineTo(tx + 0.9, -4 - tl);
+        ctx.lineTo(tx - 0.9, -4 - tl);
+        ctx.closePath(); ctx.fill();
+    }
+
+    // === DEEP SUNKEN EYE SOCKETS (much darker and deeper than original) ===
+    // Outer shadow ring
+    ctx.fillStyle = 'rgba(8,10,6,0.88)';
+    ctx.beginPath(); ctx.ellipse(4, -8, 7.5, 6, 0.18, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(4, 8, 7.5, 6, -0.18, 0, Math.PI * 2); ctx.fill();
+
+    // Inner void
+    ctx.fillStyle = 'rgba(2,3,2,0.97)';
+    ctx.beginPath(); ctx.ellipse(4, -8, 5.5, 4.5, 0.15, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(4, 8, 5.5, 4.5, -0.15, 0, Math.PI * 2); ctx.fill();
+
+    // === GLOWING GREEN EYES — deep in the socket ===
+    const ep = 0.55 + Math.sin(time * 3.5) * 0.28 + Math.sin(time * 7.3) * 0.14;
+    ctx.shadowColor = 'rgba(70,255,20,0.95)';
+    ctx.shadowBlur = 20 + Math.sin(time * 4.2) * 9;
+
+    for (const sy of [-8, 8]) {
+        // Outer ambient haze
+        ctx.fillStyle = `rgba(40,180,10,${ep * 0.4})`;
+        ctx.beginPath(); ctx.arc(5, sy, 4.5, 0, Math.PI * 2); ctx.fill();
+        // Core iris
+        ctx.fillStyle = `rgba(100,240,35,${ep})`;
+        ctx.beginPath(); ctx.arc(5, sy, 2.8, 0, Math.PI * 2); ctx.fill();
+        // Specular highlight
+        ctx.shadowBlur = 0;
+        ctx.fillStyle = `rgba(210,255,160,${ep * 1.3})`;
+        ctx.beginPath(); ctx.ellipse(5.4, sy, 0.9, 2.6, 0, 0, Math.PI * 2); ctx.fill();
+        // Vertical slit pupil — the most reptile-wrong feature
+        ctx.fillStyle = 'rgba(0,0,0,0.98)';
+        ctx.beginPath(); ctx.ellipse(5, sy, 0.6, 2.4, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.shadowBlur = 0;
+    }
     ctx.shadowBlur = 0;
-    ctx.fillStyle = 'rgba(15,20,10,0.85)'; ctx.beginPath(); ctx.ellipse(25, -2.5, 2, 1.2, 0.3, 0, Math.PI * 2); ctx.fill(); ctx.beginPath(); ctx.ellipse(25, 2.5, 2, 1.2, -0.3, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = 'rgba(235,240,215,0.95)';
-    for (let t = 0; t < 9; t++) { const tx = 6 + t * 2.2; const tl = 3 + (t === 1 || t === 7 ? 4.5 : t === 3 || t === 5 ? 3.5 : 2); ctx.beginPath(); ctx.moveTo(tx, -5); ctx.lineTo(tx + 0.7, -5 - tl); ctx.lineTo(tx - 0.7, -5 - tl); ctx.closePath(); ctx.fill(); }
-    ctx.strokeStyle = 'rgba(70,80,50,0.5)'; ctx.lineWidth = 0.8; ctx.beginPath(); ctx.moveTo(-4, -2); ctx.lineTo(-10, -7); ctx.lineTo(-12, -4); ctx.stroke(); ctx.beginPath(); ctx.moveTo(-2, 3); ctx.lineTo(-8, 8); ctx.lineTo(-5, 11); ctx.stroke();
-    ctx.strokeStyle = 'rgba(130,140,110,0.5)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(-6, -9); ctx.quadraticCurveTo(12, -10, 26, -3); ctx.stroke(); ctx.beginPath(); ctx.moveTo(-6, 9); ctx.quadraticCurveTo(12, 10, 26, 3); ctx.stroke();
-    ctx.restore();
-    if (Math.random() < 0.04) { const dx = head.x + Math.cos(a) * 18 + Math.cos(a + Math.PI / 2) * (Math.random() > 0.5 ? 7 : -7); const dy = head.y + Math.sin(a) * 18 + Math.sin(a + Math.PI / 2) * (Math.random() > 0.5 ? 7 : -7); spawnDrip(dx, dy); }
+
+    ctx.restore(); // End upper skull
+
+    // Drip occasionally
+    if (Math.random() < 0.040) {
+        const dx = head.x + Math.cos(a) * 22 + Math.cos(a + Math.PI / 2) * (Math.random() > 0.5 ? 8 : -8);
+        const dy = head.y + Math.sin(a) * 22 + Math.sin(a + Math.PI / 2) * (Math.random() > 0.5 ? 8 : -8);
+        spawnDrip(dx, dy);
+    }
+
     ctx.restore();
 }
+
 
 // ─── Draw Tail ──────────────────────────────────────────────
 function drawTail(time) {
@@ -470,8 +578,9 @@ function drawTail(time) {
         if (i % 2 === 0) { const sl = (1 - p) * 7 + 1; const sa = seg.angle + Math.PI / 2; ctx.strokeStyle = `rgba(170,180,150,${(1 - p) * 0.5})`; ctx.lineWidth = 0.8; ctx.beginPath(); ctx.moveTo(seg.x, seg.y); ctx.lineTo(seg.x + Math.cos(sa) * sl, seg.y + Math.sin(sa) * sl); ctx.stroke(); ctx.beginPath(); ctx.moveTo(seg.x, seg.y); ctx.lineTo(seg.x - Math.cos(sa) * sl, seg.y - Math.sin(sa) * sl); ctx.stroke(); }
     }
     const te = segments[SEGMENT_COUNT - 1]; const gs = 2.5 + Math.sin(time * 6) * 1.5;
-    ctx.fillStyle = `rgba(60,180,30,${0.15 + Math.sin(time * 4) * 0.1})`; ctx.shadowColor = 'rgba(60,180,30,0.4)'; ctx.shadowBlur = 6; ctx.beginPath(); ctx.arc(te.x, te.y, gs, 0, Math.PI * 2); ctx.fill(); ctx.shadowBlur = 0;
-    if (Math.random() < 0.12) spawnParticle(te.x, te.y, [60, 180, 40], 1);
+    // Glowing green tail tip
+    ctx.fillStyle = `rgba(250,0,30,${0.15 + Math.sin(time * 4) * 0.1})`; ctx.shadowColor = 'rgba(254, 0, 0, 0.4)'; ctx.shadowBlur = 6; ctx.beginPath(); ctx.arc(te.x, te.y, gs, 0, Math.PI * 2); ctx.fill(); ctx.shadowBlur = 0;
+    if (Math.random() < 0.12) spawnParticle(te.x, te.y, [250, 0, 30], 1);
 }
 
 // ─── Background ─────────────────────────────────────────────
@@ -500,6 +609,7 @@ function drawShadow() {
 
 function drawEyeTrail(time) {
     const head = segments[0]; const d = dist(head.x, head.y, mouse.x, mouse.y);
+    // Ethereal green smoke trail
     if (d > 30) { const a = head.angle; const cl = Math.min(d * 0.5, 120); ctx.fillStyle = `rgba(50,180,20,${0.015 + Math.sin(time * 3) * 0.008})`; ctx.beginPath(); const sx = head.x + Math.cos(a) * 10, sy = head.y + Math.sin(a) * 10; ctx.moveTo(sx, sy); ctx.lineTo(sx + Math.cos(a - 0.25) * cl, sy + Math.sin(a - 0.25) * cl); ctx.lineTo(sx + Math.cos(a + 0.25) * cl, sy + Math.sin(a + 0.25) * cl); ctx.closePath(); ctx.fill(); }
 }
 
@@ -511,7 +621,7 @@ let headBodyAngle = 0; // True physical heading, isolated from visual skull sway
 // Max normal walk speed (used as circling speed cap)
 const MAX_WALK_SPEED = 2;
 // Orbit radius: just outside the cursor visual radius (stopRadius + a small gap)
-const ORBIT_RADIUS = 210;
+const ORBIT_RADIUS = 230;
 // Idle delay before circling begins (ms)
 const IDLE_CIRCLE_DELAY = 10000;
 // Duration of circling before stopping (ms)
