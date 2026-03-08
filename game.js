@@ -111,20 +111,62 @@ for (let i = 0; i < LEG_PAIR_COUNT; i++) {
 // ─── Particles & Drips ─────────────────────────────────────
 const particles = [];
 const drips = [];
+const boneChips = [];
+const vapors = [];
+
 function spawnParticle(x, y, color, sizeBase) {
     particles.push({ x, y, vx: (Math.random() - 0.5) * 1.5, vy: (Math.random() - 0.5) * 1.5, life: 1, decay: 0.006 + Math.random() * 0.018, size: (sizeBase || 1.5) + Math.random() * 2, color: color || [100, 255, 80] });
 }
 function spawnDrip(x, y) {
     drips.push({ x, y, vy: 0.3 + Math.random() * 0.7, life: 1, decay: 0.008 + Math.random() * 0.01, size: 1 + Math.random() * 1.5 });
 }
+function spawnBoneChip(x, y) {
+    boneChips.push({ x, y, vx: (Math.random() - 0.5) * 0.8, vy: Math.random() * 0.5, life: 1, decay: 0.01 + Math.random() * 0.02, size: 1 + Math.random() * 2, rot: Math.random() * Math.PI * 2, rotVel: (Math.random() - 0.5) * 0.2 });
+}
+function spawnVapor(x, y, angle) {
+    const spread = (Math.random() - 0.5) * 0.5;
+    const speed = 1.5 + Math.random() * 2;
+    vapors.push({
+        x, y,
+        vx: Math.cos(angle + spread) * speed,
+        vy: Math.sin(angle + spread) * speed,
+        life: 1,
+        decay: 0.015 + Math.random() * 0.015,
+        size: 3 + Math.random() * 6
+    });
+}
 function updateParticles() {
     for (let i = particles.length - 1; i >= 0; i--) { const p = particles[i]; p.x += p.vx; p.y += p.vy; p.vx *= 0.98; p.vy *= 0.98; p.life -= p.decay; if (p.life <= 0) particles.splice(i, 1); }
     if (particles.length > 300) particles.splice(0, 50);
+
     for (let i = drips.length - 1; i >= 0; i--) { const d = drips[i]; d.y += d.vy; d.vy += 0.02; d.life -= d.decay; if (d.life <= 0) drips.splice(i, 1); }
     if (drips.length > 100) drips.splice(0, 20);
+
+    for (let i = boneChips.length - 1; i >= 0; i--) { const b = boneChips[i]; b.x += b.vx; b.y += b.vy; b.vy += 0.05; b.rot += b.rotVel; b.life -= b.decay; if (b.life <= 0) boneChips.splice(i, 1); }
+    if (boneChips.length > 100) boneChips.splice(0, 20);
+
+    for (let i = vapors.length - 1; i >= 0; i--) { const v = vapors[i]; v.x += v.vx; v.y += v.vy; v.vx *= 0.92; v.vy *= 0.92; v.size += 0.2; v.life -= v.decay; if (v.life <= 0) vapors.splice(i, 1); }
+    if (vapors.length > 150) vapors.splice(0, 30);
 }
 function drawParticles() {
+    // Vapors (drawn behind body)
+    for (const v of vapors) {
+        ctx.fillStyle = `rgba(15,18,12,${v.life * 0.6})`;
+        ctx.beginPath(); ctx.arc(v.x, v.y, v.size, 0, Math.PI * 2); ctx.fill();
+    }
+
+    // Regular particles
     for (const p of particles) { ctx.fillStyle = `rgba(${p.color[0]},${p.color[1]},${p.color[2]},${p.life * 0.6})`; ctx.beginPath(); ctx.arc(p.x, p.y, p.size * p.life, 0, Math.PI * 2); ctx.fill(); }
+
+    // Bone chips
+    for (const b of boneChips) {
+        ctx.save(); ctx.translate(b.x, b.y); ctx.rotate(b.rot);
+        ctx.fillStyle = `rgba(180,190,170,${b.life})`;
+        ctx.fillRect(-b.size / 2, -b.size, b.size, b.size * 2);
+        ctx.restore();
+    }
+
+    // Drips
     for (const d of drips) { ctx.fillStyle = `rgba(50,120,30,${d.life * 0.5})`; ctx.beginPath(); ctx.ellipse(d.x, d.y, d.size * 0.6, d.size * 1.5, 0, 0, Math.PI * 2); ctx.fill(); }
 }
 
@@ -371,13 +413,16 @@ function drawSpine(time) {
         const s = segments[i], sn = segments[i + 1];
         const perp = s.angle + Math.PI / 2, perpN = sn.angle + Math.PI / 2;
         if (i > 2 && i < SEGMENT_COUNT - 5) {
+            // Pulse effect for the membrane
+            const pulse = 1 + Math.sin(time * 0.8 + i * 0.2) * 0.15;
+
             // Shadowy black shroud membrane connecting the spine
             ctx.fillStyle = 'rgba(5,5,5,0.6)';
             ctx.beginPath();
-            ctx.moveTo(s.x + Math.cos(perp) * s.width, s.y + Math.sin(perp) * s.width);
-            ctx.lineTo(sn.x + Math.cos(perpN) * sn.width, sn.y + Math.sin(perpN) * sn.width);
-            ctx.lineTo(sn.x - Math.cos(perpN) * sn.width, sn.y - Math.sin(perpN) * sn.width);
-            ctx.lineTo(s.x - Math.cos(perp) * s.width, s.y - Math.sin(perp) * s.width);
+            ctx.moveTo(s.x + Math.cos(perp) * s.width * pulse, s.y + Math.sin(perp) * s.width * pulse);
+            ctx.lineTo(sn.x + Math.cos(perpN) * sn.width * pulse, sn.y + Math.sin(perpN) * sn.width * pulse);
+            ctx.lineTo(sn.x - Math.cos(perpN) * sn.width * pulse, sn.y - Math.sin(perpN) * sn.width * pulse);
+            ctx.lineTo(s.x - Math.cos(perp) * s.width * pulse, s.y - Math.sin(perp) * s.width * pulse);
             ctx.closePath(); ctx.fill();
         }
     }
@@ -391,12 +436,20 @@ function drawSpine(time) {
         const alpha = 1 - (i / SEGMENT_COUNT) * 0.4;
         ctx.strokeStyle = `rgba(170,180,150,${alpha})`; ctx.lineWidth = 3.5 - (i / SEGMENT_COUNT) * 2;
         ctx.beginPath(); ctx.moveTo(s0.x, s0.y); ctx.lineTo(s1.x, s1.y); ctx.stroke();
-        const size = 4.5 - (i / SEGMENT_COUNT) * 3;
+        const pulse = 1 + Math.sin(time * 0.8 + i * 0.2) * 0.15;
+        const size = (4.5 - (i / SEGMENT_COUNT) * 3) * pulse;
+
         ctx.fillStyle = `rgba(190,200,170,${alpha})`; ctx.beginPath(); ctx.arc(s1.x, s1.y, size, 0, Math.PI * 2); ctx.fill();
+
+        // Bone fragment drop
+        if (Math.random() < 0.005) { // very rare
+            spawnBoneChip(s1.x, s1.y);
+        }
+
         // Bony scutes along the spine (curved spikes)
         if (i > 2 && i < SEGMENT_COUNT - 3 && i % 2 === 0) {
             const spikeLen = (1 - i / SEGMENT_COUNT) * 14 + 6;
-            const spikeBase = size * 1.5;
+            const spikeBase = size * 0.55;
 
             // Calculate a stable angle pointing straight back along the spine's curve
             const backAngle = angleTo(s1.x, s1.y, s0.x, s0.y);
@@ -441,6 +494,9 @@ function drawSpine(time) {
             ctx.stroke();
         }
     }
+
+
+
 
     ctx.shadowBlur = 0;
 }
@@ -559,6 +615,13 @@ function drawSkull(time) {
 
     ctx.restore(); // End upper skull
 
+    // Breath Vapor from the open jaw
+    if (jaw > 0.15 && Math.random() < 0.2) {
+        // Spawn slightly offset from the jaw hinge, moving generally backward/upward
+        const vaporAngle = a + Math.PI + (Math.random() - 0.5) * 1.5;
+        spawnVapor(head.x + Math.cos(a) * -4, head.y + Math.sin(a) * -4, vaporAngle);
+    }
+
     // Drip occasionally
     if (Math.random() < 0.040) {
         const dx = head.x + Math.cos(a) * 22 + Math.cos(a + Math.PI / 2) * (Math.random() > 0.5 ? 8 : -8);
@@ -579,8 +642,8 @@ function drawTail(time) {
     }
     const te = segments[SEGMENT_COUNT - 1]; const gs = 2.5 + Math.sin(time * 6) * 1.5;
     // Glowing green tail tip
-    ctx.fillStyle = `rgba(250,0,30,${0.15 + Math.sin(time * 4) * 0.1})`; ctx.shadowColor = 'rgba(254, 0, 0, 0.4)'; ctx.shadowBlur = 6; ctx.beginPath(); ctx.arc(te.x, te.y, gs, 0, Math.PI * 2); ctx.fill(); ctx.shadowBlur = 0;
-    if (Math.random() < 0.12) spawnParticle(te.x, te.y, [250, 0, 30], 1);
+    ctx.fillStyle = `rgba(165, 33, 33,${0.15 + Math.sin(time * 4) * 0.1})`; ctx.shadowColor = 'rgba(165, 33, 33, 0.4)'; ctx.shadowBlur = 6; ctx.beginPath(); ctx.arc(te.x, te.y, gs, 0, Math.PI * 2); ctx.fill(); ctx.shadowBlur = 0;
+    if (Math.random() < 0.12) spawnParticle(te.x, te.y, [165, 33, 33], 1);
 }
 
 // ─── Background ─────────────────────────────────────────────
